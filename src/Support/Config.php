@@ -31,4 +31,16 @@ final class Config
         }
         return rtrim(trim($url), '/');
     }
+
+    public function schoolName(): string
+    {
+        $name = $this->values['FKSS_SCHOOL_NAME'] ?? getenv('FKSS_SCHOOL_NAME');
+        return is_string($name) && trim($name) !== '' ? trim($name) : 'Felege Kidusan';
+    }
+
+    public function appTitle(): string
+    {
+        $title = $this->values['FKSS_APP_TITLE'] ?? getenv('FKSS_APP_TITLE');
+        return is_string($title) && trim($title) !== '' ? trim($title) : 'Members Portal';
+    }
 }
