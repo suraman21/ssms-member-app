@@ -23,3 +23,5 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/HttpException.php';
+require_once __DIR__ . '/../View/Template.php';
+require_once __DIR__ . '/../Http/Router.php';
