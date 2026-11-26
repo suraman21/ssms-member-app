@@ -27,6 +27,7 @@ require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/../Repository/ApiClient.php';
 require_once __DIR__ . '/../Repository/AuthRepository.php';
+require_once __DIR__ . '/../Repository/AcmRepository.php';
 require_once __DIR__ . '/../Auth/SessionManager.php';
 require_once __DIR__ . '/../Auth/AuthGuard.php';
 require_once __DIR__ . '/../View/Template.php';

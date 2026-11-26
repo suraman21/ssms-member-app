@@ -6,6 +6,7 @@ require_once __DIR__ . '/src/Support/bootstrap.php';
 use MembersPortal\Auth\AuthGuard;
 use MembersPortal\Auth\SessionManager;
 use MembersPortal\Http\Router;
+use MembersPortal\Repository\AcmRepository;
 use MembersPortal\Repository\ApiClient;
 use MembersPortal\Repository\AuthRepository;
 use MembersPortal\Support\Config;
@@ -62,6 +63,76 @@ try {
         'user'        => $session->isAuthenticated() ? $session->user() : [],
         'csrfToken'   => $session->csrfToken(),
     ];
+
+    if ($path === '/activation' && $method === 'POST') {
+        $csrf = is_string($_POST['csrf_token'] ?? null) ? $_POST['csrf_token'] : null;
+        if (!$session->verifyCsrfToken($csrf)) {
+            throw new HttpException(403, 'Invalid or expired form submission.');
+        }
+
+        $step = (string) ($_POST['step'] ?? 'verify');
+        $acmRepo = new AcmRepository(new ApiClient($config->apiBaseUrl()));
+
+        if ($step === 'verify') {
+            $selector = trim((string) ($_POST['selector'] ?? ''));
+            $secret = trim((string) ($_POST['secret'] ?? ''));
+            if ($selector === '' || $secret === '') {
+                $viewData['step'] = 'verify';
+                $viewData['error'] = 'Please enter both the activation code and verification secret.';
+            } else {
+                try {
+                    $res = $acmRepo->verifyCode($selector, $secret);
+                    $logger->log('activation_verify', ['selector' => $selector]);
+                    $viewData['step'] = 'credentials';
+                    $viewData['grant'] = (string) ($res['grant'] ?? '');
+                    $viewData['idempotencyKey'] = bin2hex(random_bytes(16));
+                } catch (HttpException $ex) {
+                    $viewData['step'] = 'verify';
+                    $viewData['error'] = $ex->getMessage();
+                }
+            }
+        } elseif ($step === 'credentials') {
+            $grant = (string) ($_POST['grant'] ?? '');
+            $password = (string) ($_POST['password'] ?? '');
+            $idempotencyKey = (string) ($_POST['idempotency_key'] ?? '');
+            try {
+                $res = $acmRepo->setCredentials($grant, $password, $idempotencyKey);
+                $logger->log('activation_credentials', ['user_id' => $res['user_id'] ?? null]);
+                $viewData['step'] = 'device';
+                $viewData['grant'] = (string) ($res['device_grant'] ?? $grant);
+            } catch (HttpException $ex) {
+                $viewData['step'] = 'credentials';
+                $viewData['grant'] = $grant;
+                $viewData['idempotencyKey'] = $idempotencyKey;
+                $viewData['error'] = $ex->getMessage();
+            }
+        } elseif ($step === 'device_begin' || $step === 'device_complete') {
+            header('Content-Type: application/json; charset=utf-8');
+            header('Cache-Control: no-store');
+            try {
+                if ($step === 'device_begin') {
+                    $res = $acmRepo->beginDeviceRegistration(
+                        (string) ($_POST['grant'] ?? ''),
+                        (string) ($_POST['installation_id'] ?? ''),
+                        (string) ($_POST['pubkey'] ?? ''),
+                        (string) ($_POST['name'] ?? 'Web Browser')
+                    );
+                } else {
+                    $res = $acmRepo->completeDeviceRegistration(
+                        (string) ($_POST['challenge_id'] ?? ''),
+                        (string) ($_POST['challenge'] ?? ''),
+                        (string) ($_POST['signature'] ?? '')
+                    );
+                    $logger->log('activation_complete', ['device_uuid' => $res['device_uuid'] ?? null]);
+                }
+                echo json_encode($res);
+            } catch (HttpException $ex) {
+                http_response_code($ex->status());
+                echo json_encode(['error' => $ex->getMessage()]);
+            }
+            exit;
+        }
+    }
 
     if (($path === '/' || $path === '/sign-in') && $method === 'POST') {
         $csrf = is_string($_POST['csrf_token'] ?? null) ? $_POST['csrf_token'] : null;

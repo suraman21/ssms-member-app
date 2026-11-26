@@ -51,5 +51,6 @@ $currentRoute = $activeRoute ?? '';
     </footer>
 
     <script src="/assets/js/fk-ui.js" defer></script>
+    <script src="/assets/js/session.js" defer></script>
 </body>
 </html>
