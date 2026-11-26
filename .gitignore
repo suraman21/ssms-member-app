@@ -1,0 +1,14 @@
+# Local configuration and secrets — never committed.
+.fkss_env.php
+.env
+.env.*
+
+# Logs and OS noise.
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor and IDE state.
+.idea/
+.vscode/
+*.swp
