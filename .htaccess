@@ -4,7 +4,7 @@ Options -Indexes
     RewriteEngine On
 
     # Block direct access to internal directories and dotfiles
-    RewriteRule ^(src|templates|docs)/ - [F,L]
+    RewriteRule ^(src|templates|docs|storage)/ - [F,L]
     RewriteRule ^\. - [F,L]
 
     # Serve existing static assets directly

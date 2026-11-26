@@ -8,21 +8,21 @@ use MembersPortal\Support\HttpException;
 final class Router
 {
     /**
-     * Finite route table: normalized path => [template, title, noStore].
+     * Finite route table: normalized path => [template, title, noStore, protected].
      *
-     * @var array<string, array{template: string, title: string, noStore: bool}>
+     * @var array<string, array{template: string, title: string, noStore: bool, protected: bool}>
      */
     private const ROUTES = [
-        '/'           => ['template' => 'sign-in',    'title' => 'Sign In — Felege Kidusan', 'noStore' => false],
-        '/sign-in'    => ['template' => 'sign-in',    'title' => 'Sign In — Felege Kidusan', 'noStore' => false],
-        '/activation' => ['template' => 'activation', 'title' => 'Account Activation — Felege Kidusan', 'noStore' => true],
-        '/profile'    => ['template' => 'profile',    'title' => 'My Profile — Felege Kidusan', 'noStore' => true],
+        '/'           => ['template' => 'sign-in',    'title' => 'Sign In — Felege Kidusan',            'noStore' => false, 'protected' => false],
+        '/sign-in'    => ['template' => 'sign-in',    'title' => 'Sign In — Felege Kidusan',            'noStore' => false, 'protected' => false],
+        '/activation' => ['template' => 'activation', 'title' => 'Account Activation — Felege Kidusan', 'noStore' => true,  'protected' => false],
+        '/profile'    => ['template' => 'profile',    'title' => 'My Profile — Felege Kidusan',         'noStore' => true,  'protected' => true],
     ];
 
     /**
      * Resolve a request URI path to a finite route definition.
      *
-     * @return array{template: string, title: string, noStore: bool}
+     * @return array{template: string, title: string, noStore: bool, protected: bool}
      */
     public function resolve(string $requestUri): array
     {

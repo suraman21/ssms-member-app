@@ -3,8 +3,10 @@
 .env
 .env.*
 
-# Logs and OS noise.
+# Logs, locks, and OS noise.
 *.log
+*.lock
+storage/locks/
 .DS_Store
 Thumbs.db
 
