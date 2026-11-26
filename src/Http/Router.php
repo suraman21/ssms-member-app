@@ -15,6 +15,7 @@ final class Router
     private const ROUTES = [
         '/'           => ['template' => 'sign-in',    'title' => 'Sign In — Felege Kidusan',            'noStore' => false, 'protected' => false],
         '/sign-in'    => ['template' => 'sign-in',    'title' => 'Sign In — Felege Kidusan',            'noStore' => false, 'protected' => false],
+        '/logout'     => ['template' => 'sign-in',    'title' => 'Sign In — Felege Kidusan',            'noStore' => true,  'protected' => true],
         '/activation' => ['template' => 'activation', 'title' => 'Account Activation — Felege Kidusan', 'noStore' => true,  'protected' => false],
         '/profile'    => ['template' => 'profile',    'title' => 'My Profile — Felege Kidusan',         'noStore' => true,  'protected' => true],
     ];

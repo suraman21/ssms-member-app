@@ -30,6 +30,12 @@ $currentRoute = $activeRoute ?? '';
                 <a href="/sign-in" class="fk-nav-link<?= $currentRoute === '/sign-in' || $currentRoute === '/' ? ' is-active' : '' ?>">Sign In</a>
                 <a href="/activation" class="fk-nav-link<?= $currentRoute === '/activation' ? ' is-active' : '' ?>">Activate</a>
                 <a href="/profile" class="fk-nav-link<?= $currentRoute === '/profile' ? ' is-active' : '' ?>">Profile</a>
+                <?php if (!empty($user['id'])): ?>
+                    <form method="post" action="/logout" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
+                        <button type="submit" class="fk-nav-link">Sign Out</button>
+                    </form>
+                <?php endif; ?>
             </nav>
         </div>
     </header>

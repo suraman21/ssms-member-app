@@ -23,6 +23,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/HttpException.php';
+require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/../Repository/ApiClient.php';
 require_once __DIR__ . '/../Repository/AuthRepository.php';
