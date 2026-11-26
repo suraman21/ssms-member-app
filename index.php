@@ -9,6 +9,7 @@ use MembersPortal\Http\Router;
 use MembersPortal\Repository\AcmRepository;
 use MembersPortal\Repository\ApiClient;
 use MembersPortal\Repository\AuthRepository;
+use MembersPortal\Repository\ProfileRepository;
 use MembersPortal\Support\Config;
 use MembersPortal\Support\HttpException;
 use MembersPortal\Support\Logger;
@@ -185,6 +186,48 @@ try {
 
     if ($route['protected']) {
         $viewData['user'] = $authGuard->requireRole(['member']);
+    }
+
+    if ($path === '/profile') {
+        $accessToken = $session->accessToken() ?? '';
+        $profileRepo = new ProfileRepository(new ApiClient($config->apiBaseUrl()));
+
+        if ($method === 'POST') {
+            $csrf = is_string($_POST['csrf_token'] ?? null) ? $_POST['csrf_token'] : null;
+            if (!$session->verifyCsrfToken($csrf)) {
+                throw new HttpException(403, 'Invalid or expired form submission.');
+            }
+
+            $action = (string) ($_POST['action'] ?? '');
+            try {
+                if ($action === 'update_profile') {
+                    $profileRepo->updateMe($accessToken, [
+                        'profile_version' => (string) ($_POST['profile_version'] ?? ''),
+                        'username'        => trim((string) ($_POST['username'] ?? '')),
+                        'full_name'       => trim((string) ($_POST['full_name'] ?? '')),
+                        'email'           => trim((string) ($_POST['email'] ?? '')),
+                    ]);
+                    $viewData['notice'] = 'Profile updated.';
+                } elseif ($action === 'change_password') {
+                    $profileRepo->changePassword(
+                        $accessToken,
+                        (string) ($_POST['current_password'] ?? ''),
+                        (string) ($_POST['new_password'] ?? ''),
+                        (string) ($_POST['confirm_password'] ?? '')
+                    );
+                    $viewData['notice'] = 'Password updated.';
+                }
+            } catch (HttpException $ex) {
+                $viewData['error'] = $ex->getMessage();
+            }
+        }
+
+        try {
+            $viewData['profile'] = $profileRepo->getMe($accessToken);
+        } catch (HttpException $ex) {
+            $viewData['profile'] = $viewData['user'];
+            $viewData['error'] = $viewData['error'] ?? $ex->getMessage();
+        }
     }
 
     if ($route['noStore'] || !empty($viewData['error'])) {
