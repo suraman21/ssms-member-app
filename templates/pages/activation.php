@@ -1,21 +1,25 @@
 <?php
 /**
- * Account activation wizard.
+ * Self-service account activation wizard.
  *
  * S12: activation now uses a 6-digit OTP bound to a ticket/request
- * reference (ticket_no like ACM-20251127-0001 or request_ref). The old
- * selector+secret pair remains for device_add/reset but is no longer
+ * reference (ticket_no like ACM-20251127-0001 or request_ref like MX7CVJNR).
+ * The old selector+secret pair remains for device_add/reset but is no longer
  * accepted for activation. This template accepts both so old codes in
- * circulation still work while new OTP codes are primary.
+ * circulation still work while new OTP codes are primary. Self-service
+ * flow is 4 steps: request -> verify -> credentials -> device.
  *
  * @var callable(mixed): string $e
  * @var string|null $csrfToken
  * @var string|null $error
+ * @var string|null $notice
  * @var string|null $step
+ * @var string|null $reference
  * @var string|null $grant
  * @var string|null $idempotencyKey
+ * @var string|null $username
  */
-$currentStep = $step ?? 'verify';
+$currentStep = $step ?? 'request';
 ?>
 <section class="fk-card fk-auth-card" aria-labelledby="activation-heading">
     <h1 id="activation-heading" class="fk-card-title">Activate Your Account</h1>
@@ -24,24 +28,58 @@ $currentStep = $step ?? 'verify';
         <div class="fk-alert fk-alert-error" role="alert"><?= $e($error) ?></div>
     <?php endif; ?>
 
-    <?php if ($currentStep === 'verify'): ?>
-        <p class="fk-card-subtitle">Step 1 of 3: Enter the activation code issued by the Sunday School office.</p>
+    <?php if (!empty($notice)): ?>
+        <div class="fk-notice" role="status"><?= $e($notice) ?></div>
+    <?php endif; ?>
+
+    <?php if ($currentStep === 'request'): ?>
+        <p class="fk-card-subtitle">Step 1 of 4: Request an activation code using your Member ID.</p>
+        <form class="fk-form" method="post" action="/activation" novalidate>
+            <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
+            <input type="hidden" name="step" value="request">
+            <input type="hidden" name="account_type" value="member">
+
+            <div class="fk-field">
+                <label for="member_code" class="fk-label">Member ID</label>
+                <input id="member_code" name="member_code" type="text" class="fk-input" autocomplete="off" required>
+            </div>
+
+            <div class="fk-field">
+                <label for="full_name" class="fk-label">Full Name</label>
+                <input id="full_name" name="full_name" type="text" class="fk-input" autocomplete="name" required>
+            </div>
+
+            <div class="fk-field">
+                <label for="phone" class="fk-label">Phone Number (optional)</label>
+                <input id="phone" name="phone" type="tel" class="fk-input" autocomplete="tel">
+            </div>
+
+            <div class="fk-actions">
+                <button type="submit" class="fk-btn fk-btn-primary">Request Activation Code</button>
+            </div>
+        </form>
+        <p class="fk-help-text">
+            Already have a reference and 6-digit code? <a href="/activation?step=verify">Enter your code</a>.
+        </p>
+
+    <?php elseif ($currentStep === 'verify'): ?>
+        <p class="fk-card-subtitle">Step 2 of 4: Enter your reference number and the 6-digit code.</p>
         <div class="fk-notice" role="status" style="margin-bottom:1rem">
-            New codes are <strong>6 digits</strong> (e.g. <code>123 456</code>) together with your ticket number (e.g. <code>ACM-20251127-0001</code>). If you received an older code with a selector and secret, use the link below.
+            New codes are <strong>6 digits</strong> (e.g. <code>123 456</code>) together with your reference (e.g. <code>MX7CVJNR</code> or <code>ACM-20251127-0001</code>). For self-service requests this is your request reference; for office-issued tickets it is the ticket number.
         </div>
         <form class="fk-form" method="post" action="/activation" novalidate>
             <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
             <input type="hidden" name="step" value="verify">
 
             <div class="fk-field">
-                <label for="reference" class="fk-label">Ticket number or request reference</label>
-                <input id="reference" name="reference" type="text" class="fk-input" autocomplete="off" placeholder="ACM-20251127-0001" required>
-                <p class="fk-help-text" style="margin:4px 0 0">Found on the slip the office gave you. For self-service requests this is your request reference.</p>
+                <label for="reference" class="fk-label">Request Reference / Ticket No.</label>
+                <input id="reference" name="reference" type="text" class="fk-input" value="<?= $e($reference ?? '') ?>" autocomplete="off" placeholder="MX7CVJNR or ACM-20251127-0001" required>
+                <p class="fk-help-text" style="margin:4px 0 0">Found on the slip the office gave you. For self-service requests this is your request reference (e.g. MX7CVJNR).</p>
             </div>
 
             <div class="fk-field">
-                <label for="otp" class="fk-label">6-digit activation code</label>
-                <input id="otp" name="otp" type="text" class="fk-input" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" placeholder="123 456" required>
+                <label for="otp" class="fk-label">6-Digit Code</label>
+                <input id="otp" name="otp" type="text" inputmode="numeric" class="fk-input" placeholder="123 456" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required>
                 <p class="fk-help-text" style="margin:4px 0 0">Spaces are ignored. The code expires after 10 minutes.</p>
             </div>
 
@@ -65,8 +103,12 @@ $currentStep = $step ?? 'verify';
                 </div>
             </details>
         </form>
+        <p class="fk-help-text">
+            Need a new code? <a href="/activation">Request again</a>.
+        </p>
+
     <?php elseif ($currentStep === 'credentials'): ?>
-        <p class="fk-card-subtitle">Step 2 of 3: Choose a strong password for your account.</p>
+        <p class="fk-card-subtitle">Step 3 of 4: Choose your username and password.</p>
         <form class="fk-form" method="post" action="/activation" novalidate>
             <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
             <input type="hidden" name="step" value="credentials">
@@ -74,20 +116,26 @@ $currentStep = $step ?? 'verify';
             <input type="hidden" name="idempotency_key" value="<?= $e($idempotencyKey ?? '') ?>">
 
             <div class="fk-field">
-                <label for="password" class="fk-label">New Password</label>
+                <label for="username" class="fk-label">Username (optional)</label>
+                <input id="username" name="username" type="text" class="fk-input" value="<?= $e($username ?? '') ?>" autocomplete="username">
+            </div>
+
+            <div class="fk-field">
+                <label for="password" class="fk-label">Password</label>
                 <input id="password" name="password" type="password" class="fk-input" autocomplete="new-password" required>
             </div>
 
             <div class="fk-actions">
-                <button type="submit" class="fk-btn fk-btn-primary">Set Password</button>
+                <button type="submit" class="fk-btn fk-btn-primary">Set Credentials</button>
             </div>
         </form>
+
     <?php elseif ($currentStep === 'device'): ?>
-        <p class="fk-card-subtitle">Step 3 of 3: Register this browser as your trusted device.</p>
+        <p class="fk-card-subtitle">Step 4 of 4: Register this browser as your trusted device.</p>
         <div class="fk-notice" role="status">
-            Your device key is stored securely in this browser. Clearing browser data will require a new activation code from the office.
+            Your browser stores a non-extractable device key in this profile. Unlike the mobile app's hardware keystore, clearing site data or switching browsers will require an office re-issue.
         </div>
-        <div id="device-status" class="fk-help-text">Preparing device registration...</div>
+        <div id="device-status" class="fk-help-text">Ready to register this browser.</div>
         <div class="fk-actions">
             <button id="register-device-btn" type="button" class="fk-btn fk-btn-primary">Register This Device</button>
         </div>
@@ -97,6 +145,12 @@ $currentStep = $step ?? 'verify';
             const statusEl = document.getElementById('device-status');
             const csrfToken = <?= json_encode($csrfToken ?? '') ?>;
             const grant = <?= json_encode($grant ?? '') ?>;
+
+            if (!window.isSecureContext || !window.crypto || !window.crypto.subtle) {
+                statusEl.textContent = 'Device registration requires HTTPS (WebCrypto is unavailable on this origin). Please open this site over HTTPS.';
+                btn.disabled = true;
+                return;
+            }
 
             btn.addEventListener('click', async function () {
                 btn.disabled = true;
@@ -145,7 +199,7 @@ $currentStep = $step ?? 'verify';
                     statusEl.textContent = 'Device registered! Redirecting to Sign In...';
                     window.location.href = '/sign-in';
                 } catch (err) {
-                    statusEl.textContent = err.message || 'Device registration failed.';
+                    statusEl.textContent = err.message || 'Device registration failed. Please try again.';
                     btn.disabled = false;
                 }
             });
