@@ -21,8 +21,11 @@
  */
 $currentStep = $step ?? 'request';
 ?>
-<section class="fk-card fk-auth-card" aria-labelledby="activation-heading">
-    <h1 id="activation-heading" class="fk-card-title">Activate Your Account</h1>
+<div class="login-container">
+<section class="login-card" aria-labelledby="activation-heading">
+    <div class="login-header">
+        <h1 id="activation-heading" class="login-title">Activate Your Account</h1>
+    </div>
 
     <?php if (!empty($error)): ?>
         <div class="fk-alert fk-alert-error" role="alert"><?= $e($error) ?></div>
@@ -33,30 +36,28 @@ $currentStep = $step ?? 'request';
     <?php endif; ?>
 
     <?php if ($currentStep === 'request'): ?>
-        <p class="fk-card-subtitle">Step 1 of 4: Request an activation code using your Member ID.</p>
-        <form class="fk-form" method="post" action="/activation" novalidate>
+        <p class="login-subtitle">Step 1 of 4: Request an activation code using your Member ID.</p>
+        <form class="login-form" method="post" action="/activation" novalidate>
             <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
             <input type="hidden" name="step" value="request">
             <input type="hidden" name="account_type" value="member">
 
-            <div class="fk-field">
-                <label for="member_code" class="fk-label">Member ID</label>
-                <input id="member_code" name="member_code" type="text" class="fk-input" autocomplete="off" required>
+            <div class="form-group">
+                <label for="member_code" class="form-label">Member ID</label>
+                <input id="member_code" name="member_code" type="text" class="form-input" value="<?= $e($memberCode ?? '') ?>" autocomplete="off" required>
             </div>
 
-            <div class="fk-field">
-                <label for="full_name" class="fk-label">Full Name</label>
-                <input id="full_name" name="full_name" type="text" class="fk-input" autocomplete="name" required>
+            <div class="form-group">
+                <label for="full_name" class="form-label">Full Name</label>
+                <input id="full_name" name="full_name" type="text" class="form-input" value="<?= $e($fullName ?? '') ?>" autocomplete="name" required>
             </div>
 
-            <div class="fk-field">
-                <label for="phone" class="fk-label">Phone Number (optional)</label>
-                <input id="phone" name="phone" type="tel" class="fk-input" autocomplete="tel">
+            <div class="form-group">
+                <label for="phone" class="form-label">Phone Number (optional)</label>
+                <input id="phone" name="phone" type="tel" class="form-input" value="<?= $e($phone ?? '') ?>" autocomplete="tel">
             </div>
 
-            <div class="fk-actions">
-                <button type="submit" class="fk-btn fk-btn-primary">Request Activation Code</button>
-            </div>
+            <button type="submit" class="btn-primary">Request Activation Code</button>
         </form>
         <p class="fk-help-text">
             Already have a reference and 6-digit code? <a href="/activation?step=verify">Enter your code</a>.
@@ -211,3 +212,4 @@ $currentStep = $step ?? 'request';
         Already activated? <a href="/sign-in">Back to Sign In</a>.
     </p>
 </section>
+</div>

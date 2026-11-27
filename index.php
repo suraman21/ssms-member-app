@@ -84,6 +84,9 @@ try {
             $fullName = trim((string) ($_POST['full_name'] ?? ''));
             $phone = trim((string) ($_POST['phone'] ?? ''));
             $accountType = trim((string) ($_POST['account_type'] ?? 'member')) ?: 'member';
+            $viewData['memberCode'] = $memberCode;
+            $viewData['fullName'] = $fullName;
+            $viewData['phone'] = $phone;
 
             if ($memberCode === '' || $fullName === '') {
                 $viewData['step'] = 'request';
