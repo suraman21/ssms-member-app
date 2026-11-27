@@ -16,21 +16,43 @@ final class AcmRepository
     }
 
     /**
-     * Step 1: Verify office-issued activation code.
-     * Strict body: only selector, secret, purpose, and optional installation_id.
+     * Step 0: Request an activation code.
+     * Strict body: member_code, full_name, account_type, and optional phone.
      *
      * @return array<string, mixed>
      */
-    public function verifyCode(
-        string $selector,
-        string $secret,
-        string $purpose = 'activate',
+    public function requestCode(
+        string $memberCode,
+        string $fullName,
+        ?string $phone = null,
+        string $accountType = 'member'
+    ): array {
+        $payload = [
+            'member_code'  => $memberCode,
+            'full_name'    => $fullName,
+            'account_type' => $accountType,
+        ];
+
+        if ($phone !== null && $phone !== '') {
+            $payload['phone'] = $phone;
+        }
+
+        return $this->client->request('POST', '/acm/activate/request', $payload);
+    }
+
+    /**
+     * Step 1: Verify the 6-digit OTP against a request_ref / ticket_no.
+     *
+     * @return array<string, mixed>
+     */
+    public function verifyOtp(
+        string $otp,
+        string $reference,
         ?string $installationId = null
     ): array {
         $payload = [
-            'selector' => $selector,
-            'secret'   => $secret,
-            'purpose'  => $purpose,
+            'otp'       => $otp,
+            'reference' => $reference,
         ];
 
         if ($installationId !== null && $installationId !== '') {
@@ -41,21 +63,31 @@ final class AcmRepository
     }
 
     /**
-     * Step 2: Set account password.
+     * Step 2: Set account credentials (username optional, password required).
      *
      * @return array<string, mixed>
      */
-    public function setCredentials(string $grant, string $password, string $idempotencyKey): array
-    {
-        return $this->client->request('POST', '/acm/activate/credentials', [
+    public function setCredentials(
+        string $grant,
+        string $password,
+        string $idempotencyKey,
+        ?string $username = null
+    ): array {
+        $payload = [
             'grant'           => $grant,
             'password'        => $password,
             'idempotency_key' => $idempotencyKey,
-        ]);
+        ];
+
+        if ($username !== null && $username !== '') {
+            $payload['username'] = $username;
+        }
+
+        return $this->client->request('POST', '/acm/activate/credentials', $payload);
     }
 
     /**
-     * Step 3: Begin P-256 device registration.
+     * Step 3a: Begin P-256 device registration.
      *
      * @return array<string, mixed>
      */
@@ -74,7 +106,7 @@ final class AcmRepository
     }
 
     /**
-     * Step 4: Complete device registration with DER-encoded ECDSA signature.
+     * Step 3b: Complete device registration with DER-encoded ECDSA signature.
      *
      * @return array<string, mixed>
      */

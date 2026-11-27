@@ -65,47 +65,104 @@ try {
         'csrfToken'   => $session->csrfToken(),
     ];
 
+    if ($path === '/activation' && $method === 'GET') {
+        $requestedStep = (string) ($_GET['step'] ?? 'request');
+        $viewData['step'] = $requestedStep === 'verify' ? 'verify' : 'request';
+    }
+
     if ($path === '/activation' && $method === 'POST') {
         $csrf = is_string($_POST['csrf_token'] ?? null) ? $_POST['csrf_token'] : null;
         if (!$session->verifyCsrfToken($csrf)) {
             throw new HttpException(403, 'Invalid or expired form submission.');
         }
 
-        $step = (string) ($_POST['step'] ?? 'verify');
+        $step = (string) ($_POST['step'] ?? 'request');
         $acmRepo = new AcmRepository(new ApiClient($config->apiBaseUrl()));
 
-        if ($step === 'verify') {
-            $selector = trim((string) ($_POST['selector'] ?? ''));
-            $secret = trim((string) ($_POST['secret'] ?? ''));
-            if ($selector === '' || $secret === '') {
-                $viewData['step'] = 'verify';
-                $viewData['error'] = 'Please enter both the activation code and verification secret.';
+        if ($step === 'request') {
+            $memberCode = trim((string) ($_POST['member_code'] ?? ''));
+            $fullName = trim((string) ($_POST['full_name'] ?? ''));
+            $phone = trim((string) ($_POST['phone'] ?? ''));
+            $accountType = trim((string) ($_POST['account_type'] ?? 'member')) ?: 'member';
+
+            if ($memberCode === '' || $fullName === '') {
+                $viewData['step'] = 'request';
+                $viewData['error'] = 'Please enter your Member ID and Full Name.';
             } else {
                 try {
-                    $res = $acmRepo->verifyCode($selector, $secret);
-                    $logger->log('activation_verify', ['selector' => $selector]);
+                    $res = $acmRepo->requestCode($memberCode, $fullName, $phone !== '' ? $phone : null, $accountType);
+                    $logger->log('activation_request', ['member_code' => $memberCode]);
+                    $ref = (string) ($res['request_ref'] ?? '');
+                    $viewData['step'] = 'verify';
+                    $viewData['reference'] = $ref;
+                    $viewData['notice'] = 'Request submitted. Keep your reference (' . $ref . ') and enter the 6-digit code once approved.';
+                } catch (HttpException $ex) {
+                    $payload = $ex->publicPayload();
+                    $viewData['step'] = 'request';
+                    if ($ex->status() === 429 && !empty($payload['retry_after'])) {
+                        $viewData['error'] = 'Too many requests. Please wait ' . $payload['retry_after'] . ' seconds before trying again.';
+                    } else {
+                        $viewData['error'] = 'Unable to submit request right now. Please try again shortly.';
+                    }
+                }
+            }
+        } elseif ($step === 'verify') {
+            $reference = trim((string) ($_POST['reference'] ?? ''));
+            $rawOtp = (string) ($_POST['otp'] ?? '');
+            $otp = preg_replace('/\D+/', '', $rawOtp) ?? '';
+            $viewData['reference'] = $reference;
+
+            if ($reference === '' || strlen($otp) !== 6) {
+                $viewData['step'] = 'verify';
+                $viewData['error'] = 'Please enter your reference and a valid 6-digit code.';
+            } else {
+                try {
+                    $res = $acmRepo->verifyOtp($otp, $reference);
+                    $logger->log('activation_verify', ['reference' => $reference]);
                     $viewData['step'] = 'credentials';
                     $viewData['grant'] = (string) ($res['grant'] ?? '');
                     $viewData['idempotencyKey'] = bin2hex(random_bytes(16));
                 } catch (HttpException $ex) {
                     $viewData['step'] = 'verify';
-                    $viewData['error'] = $ex->getMessage();
+                    $code = $ex->publicPayload()['code'] ?? '';
+                    if ($code === 'code_invalid') {
+                        $viewData['error'] = 'The code or reference is invalid or expired. Check your code or request a new one.';
+                    } else {
+                        $viewData['error'] = $ex->getMessage();
+                    }
                 }
             }
         } elseif ($step === 'credentials') {
             $grant = (string) ($_POST['grant'] ?? '');
+            $username = trim((string) ($_POST['username'] ?? ''));
             $password = (string) ($_POST['password'] ?? '');
             $idempotencyKey = (string) ($_POST['idempotency_key'] ?? '');
+            if ($idempotencyKey === '') {
+                $idempotencyKey = bin2hex(random_bytes(16));
+            }
+
             try {
-                $res = $acmRepo->setCredentials($grant, $password, $idempotencyKey);
+                $res = $acmRepo->setCredentials($grant, $password, $idempotencyKey, $username !== '' ? $username : null);
                 $logger->log('activation_credentials', ['user_id' => $res['user_id'] ?? null]);
                 $viewData['step'] = 'device';
                 $viewData['grant'] = (string) ($res['device_grant'] ?? $grant);
             } catch (HttpException $ex) {
+                $code = $ex->publicPayload()['code'] ?? '';
                 $viewData['step'] = 'credentials';
                 $viewData['grant'] = $grant;
                 $viewData['idempotencyKey'] = $idempotencyKey;
-                $viewData['error'] = $ex->getMessage();
+                $viewData['username'] = $username;
+
+                if ($code === 'weak_password') {
+                    $viewData['error'] = $ex->getMessage();
+                } elseif ($code === 'username_unavailable') {
+                    $viewData['error'] = 'That username is already taken. Please choose another username.';
+                } elseif ($code === 'account_exists') {
+                    $viewData['step'] = 'request';
+                    $viewData['notice'] = 'Your request has been queued for office review. Please contact the Sunday School office.';
+                } else {
+                    $viewData['error'] = $ex->getMessage();
+                }
             }
         } elseif ($step === 'device_begin' || $step === 'device_complete') {
             header('Content-Type: application/json; charset=utf-8');
