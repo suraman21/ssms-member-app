@@ -107,25 +107,59 @@ try {
                 }
             }
         } elseif ($step === 'verify') {
-            $reference = trim((string) ($_POST['reference'] ?? ''));
-            $rawOtp = (string) ($_POST['otp'] ?? '');
-            $otp = preg_replace('/\D+/', '', $rawOtp) ?? '';
+            // S12: primary path is OTP 6-digit + ticket/request reference.
+            // Legacy selector+secret pair is kept for codes issued before Nov 2026
+            // and for device_add/reset purposes. Detect which the user supplied.
+            $otpRaw = (string) ($_POST['otp'] ?? '');
+            $otp = preg_replace('/\D+/', '', $otpRaw) ?? '';
+            $reference = trim((string) ($_POST['reference'] ?? $_POST['ticket_no'] ?? ''));
+            $selector = trim((string) ($_POST['selector'] ?? ''));
+            $secret = trim((string) ($_POST['secret'] ?? ''));
+
+            $isLegacy = $selector !== '' && $secret !== '';
+            $isOtp = !$isLegacy && $otp !== '' && $reference !== '';
+
             $viewData['reference'] = $reference;
 
-            if ($reference === '' || strlen($otp) !== 6) {
+            if (!$isLegacy && !$isOtp) {
                 $viewData['step'] = 'verify';
-                $viewData['error'] = 'Please enter your reference and a valid 6-digit code.';
+                if ($selector !== '' || $secret !== '') {
+                    $viewData['error'] = 'For older codes please enter both selector and secret. For new codes enter your reference and 6-digit code.';
+                } elseif ($otp !== '' && $reference === '') {
+                    $viewData['error'] = 'Please enter your reference (e.g. MX7CVJNR or ACM-20251127-0001) together with the 6-digit code.';
+                } elseif ($otp === '' && $reference !== '') {
+                    $viewData['error'] = 'Please enter the 6-digit activation code you received from the office.';
+                } else {
+                    $viewData['error'] = 'Please enter your reference and a valid 6-digit code.';
+                }
             } else {
                 try {
-                    $res = $acmRepo->verifyOtp($otp, $reference);
-                    $logger->log('activation_verify', ['reference' => $reference]);
+                    if ($isLegacy) {
+                        $res = $acmRepo->verifyCode($selector, $secret);
+                        $logger->log('activation_verify_legacy', ['selector' => $selector]);
+                    } else {
+                        if (!preg_match('/^\d{6}$/', $otp)) {
+                            throw new HttpException(400, 'The 6-digit code must be exactly 6 numbers (e.g. 123 456).');
+                        }
+                        if (strlen($reference) > 24 || $reference === '') {
+                            throw new HttpException(400, 'Please enter a valid reference or ticket number.');
+                        }
+                        $res = $acmRepo->verifyOtp($otp, $reference);
+                        $logger->log('activation_verify', ['reference' => $reference]);
+                    }
                     $viewData['step'] = 'credentials';
                     $viewData['grant'] = (string) ($res['grant'] ?? '');
                     $viewData['idempotencyKey'] = bin2hex(random_bytes(16));
                 } catch (HttpException $ex) {
                     $viewData['step'] = 'verify';
-                    $code = $ex->publicPayload()['code'] ?? '';
-                    if ($code === 'code_invalid') {
+                    $payload = $ex->publicPayload();
+                    $code = $payload['code'] ?? '';
+                    if ($ex->status() === 503 || $code === 'temporarily_unavailable') {
+                        $viewData['error'] = 'The Accounts Office system is briefly unavailable. Please wait a minute and try again. If this persists, contact the office with your reference.';
+                    } elseif ($code === 'rate_limited') {
+                        $retry = $payload['retry_after'] ?? '';
+                        $viewData['error'] = $retry !== '' ? 'Too many attempts. Please wait ' . $retry . ' seconds and try again.' : $ex->getMessage();
+                    } elseif ($code === 'code_invalid') {
                         $viewData['error'] = 'The code or reference is invalid or expired. Check your code or request a new one.';
                     } else {
                         $viewData['error'] = $ex->getMessage();

@@ -2,6 +2,13 @@
 /**
  * Self-service account activation wizard.
  *
+ * S12: activation now uses a 6-digit OTP bound to a ticket/request
+ * reference (ticket_no like ACM-20251127-0001 or request_ref like MX7CVJNR).
+ * The old selector+secret pair remains for device_add/reset but is no longer
+ * accepted for activation. This template accepts both so old codes in
+ * circulation still work while new OTP codes are primary. Self-service
+ * flow is 4 steps: request -> verify -> credentials -> device.
+ *
  * @var callable(mixed): string $e
  * @var string|null $csrfToken
  * @var string|null $error
@@ -57,23 +64,44 @@ $currentStep = $step ?? 'request';
 
     <?php elseif ($currentStep === 'verify'): ?>
         <p class="fk-card-subtitle">Step 2 of 4: Enter your reference number and the 6-digit code.</p>
+        <div class="fk-notice" role="status" style="margin-bottom:1rem">
+            New codes are <strong>6 digits</strong> (e.g. <code>123 456</code>) together with your reference (e.g. <code>MX7CVJNR</code> or <code>ACM-20251127-0001</code>). For self-service requests this is your request reference; for office-issued tickets it is the ticket number.
+        </div>
         <form class="fk-form" method="post" action="/activation" novalidate>
             <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
             <input type="hidden" name="step" value="verify">
 
             <div class="fk-field">
                 <label for="reference" class="fk-label">Request Reference / Ticket No.</label>
-                <input id="reference" name="reference" type="text" class="fk-input" value="<?= $e($reference ?? '') ?>" autocomplete="off" required>
+                <input id="reference" name="reference" type="text" class="fk-input" value="<?= $e($reference ?? '') ?>" autocomplete="off" placeholder="MX7CVJNR or ACM-20251127-0001" required>
+                <p class="fk-help-text" style="margin:4px 0 0">Found on the slip the office gave you. For self-service requests this is your request reference (e.g. MX7CVJNR).</p>
             </div>
 
             <div class="fk-field">
                 <label for="otp" class="fk-label">6-Digit Code</label>
-                <input id="otp" name="otp" type="text" inputmode="numeric" class="fk-input" placeholder="123 456" autocomplete="one-time-code" required>
+                <input id="otp" name="otp" type="text" inputmode="numeric" class="fk-input" placeholder="123 456" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required>
+                <p class="fk-help-text" style="margin:4px 0 0">Spaces are ignored. The code expires after 10 minutes.</p>
             </div>
 
             <div class="fk-actions">
                 <button type="submit" class="fk-btn fk-btn-primary">Verify Code</button>
             </div>
+
+            <details style="margin-top:1rem">
+                <summary class="fk-help-text" style="cursor:pointer">I have an older code with a selector and secret</summary>
+                <div style="margin-top:.75rem;border:1px solid var(--fk-gold-light);border-radius:12px;padding:12px;background:var(--fk-ivory)">
+                    <p class="fk-help-text">Only for codes issued before November 2026 with a separate selector (6 chars) and secret (8 chars). New 6-digit codes use the fields above.</p>
+                    <div class="fk-field">
+                        <label for="selector" class="fk-label">Selector (6 chars)</label>
+                        <input id="selector" name="selector" type="text" class="fk-input" autocomplete="off" placeholder="e.g. A7K4P2">
+                    </div>
+                    <div class="fk-field">
+                        <label for="secret" class="fk-label">Verification Secret (8 chars)</label>
+                        <input id="secret" name="secret" type="password" class="fk-input" autocomplete="off" placeholder="e.g. 9X2Q...">
+                    </div>
+                    <p class="fk-help-text">If you fill both fields above, the 6-digit code is ignored and the older verification path is used.</p>
+                </div>
+            </details>
         </form>
         <p class="fk-help-text">
             Need a new code? <a href="/activation">Request again</a>.
