@@ -9,6 +9,7 @@
  */
 $pageTitle = $title ?? 'Felege Kidusan — Members Portal';
 $currentRoute = $activeRoute ?? '';
+$isAuthPage = in_array($currentRoute, ['', '/', '/sign-in', '/activation'], true);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -16,10 +17,10 @@ $currentRoute = $activeRoute ?? '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $e($pageTitle) ?></title>
-    <link rel="stylesheet" href="/assets/css/fk-theme.css">
     <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/fk-theme.css">
 </head>
-<body class="fk-body">
+<body class="<?= $isAuthPage ? 'login-page' : 'fk-body' ?>">
     <header class="fk-header">
         <div class="fk-header-inner">
             <a href="/" class="fk-brand">

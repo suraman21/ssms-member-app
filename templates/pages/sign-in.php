@@ -1,6 +1,6 @@
 <?php
 /**
- * Sign-in page.
+ * Sign-in page (matches prototype login.html).
  *
  * @var callable(mixed): string $e
  * @var string|null $csrfToken
@@ -9,37 +9,39 @@
  * @var string|null $username
  */
 ?>
-<section class="fk-card fk-auth-card" aria-labelledby="sign-in-heading">
-    <h1 id="sign-in-heading" class="fk-card-title">Member Sign In</h1>
-    <p class="fk-card-subtitle">Sign in with your Sunday School account.</p>
-
-    <?php if (!empty($error)): ?>
-        <div class="fk-alert fk-alert-error" role="alert"><?= $e($error) ?></div>
-    <?php endif; ?>
-
-    <?php if (!empty($notice)): ?>
-        <div class="fk-notice" role="status"><?= $e($notice) ?></div>
-    <?php endif; ?>
-
-    <form class="fk-form" method="post" action="/sign-in" novalidate>
-        <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
-
-        <div class="fk-field">
-            <label for="username" class="fk-label">Username</label>
-            <input id="username" name="username" type="text" class="fk-input" autocomplete="username" value="<?= $e($username ?? '') ?>" required>
+<div class="login-container">
+    <section class="login-card" aria-labelledby="sign-in-heading">
+        <div class="login-header">
+            <h1 id="sign-in-heading" class="login-title">Member Sign In</h1>
+            <p class="login-subtitle">Sign in with your Sunday School account.</p>
         </div>
 
-        <div class="fk-field">
-            <label for="password" class="fk-label">Password</label>
-            <input id="password" name="password" type="password" class="fk-input" autocomplete="current-password" required>
-        </div>
+        <?php if (!empty($error)): ?>
+            <div class="fk-alert fk-alert-error" role="alert"><?= $e($error) ?></div>
+        <?php endif; ?>
 
-        <div class="fk-actions">
-            <button type="submit" class="fk-btn fk-btn-primary">Sign In</button>
-        </div>
-    </form>
+        <?php if (!empty($notice)): ?>
+            <div class="fk-notice" role="status"><?= $e($notice) ?></div>
+        <?php endif; ?>
 
-    <p class="fk-help-text">
-        First time here? <a href="/activation">I have an activation code</a>.
-    </p>
-</section>
+        <form class="login-form" method="post" action="/sign-in" novalidate>
+            <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
+
+            <div class="form-group">
+                <label for="username" class="form-label">Username</label>
+                <input id="username" name="username" type="text" class="form-input" autocomplete="username" value="<?= $e($username ?? '') ?>" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
+                <input id="password" name="password" type="password" class="form-input" autocomplete="current-password" required>
+            </div>
+
+            <button type="submit" class="btn-primary">Sign In</button>
+        </form>
+
+        <p class="fk-help-text">
+            First time here? <a href="/activation">I have an activation code</a>.
+        </p>
+    </section>
+</div>
