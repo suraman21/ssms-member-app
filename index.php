@@ -98,9 +98,16 @@ try {
                     $viewData['notice'] = 'Request submitted. Keep your reference (' . $ref . ') and enter the 6-digit code once approved.';
                 } catch (HttpException $ex) {
                     $payload = $ex->publicPayload();
+                    $code = $payload['code'] ?? '';
+                    $logger->log('activation_request_failed', [
+                        'status' => $ex->status(),
+                        'code'   => $code,
+                    ]);
                     $viewData['step'] = 'request';
                     if ($ex->status() === 429 && !empty($payload['retry_after'])) {
                         $viewData['error'] = 'Too many requests. Please wait ' . $payload['retry_after'] . ' seconds before trying again.';
+                    } elseif ($ex->status() >= 400 && $ex->status() < 500) {
+                        $viewData['error'] = $ex->getMessage();
                     } else {
                         $viewData['error'] = 'Unable to submit request right now. Please try again shortly.';
                     }
