@@ -16,7 +16,39 @@ final class AcmRepository
     }
 
     /**
-     * Step 1: Verify office-issued activation code.
+     * Step 1: Verify 6-digit OTP activation code (S12).
+     * The platform now issues a numeric OTP bound to a ticket/request
+     * reference (ticket_no or request_ref). The old selector+secret pair
+     * remains valid only for device_add / reset purposes.
+     *
+     * @return array<string, mixed>
+     */
+    public function verifyOtp(
+        string $otp,
+        string $reference,
+        ?string $installationId = null
+    ): array {
+        // Strict OTP shape: 6 digits, reference is ticket_no (ACM-…) or request_ref.
+        // Send BOTH `reference` and `ticket_no` so the payload is accepted by every
+        // platform revision that handles either alias (see api/v1/routes/acm.php).
+        $payload = [
+            'otp'       => $otp,
+            'reference' => $reference,
+            'ticket_no' => $reference,
+        ];
+
+        if ($installationId !== null && $installationId !== '') {
+            $payload['installation_id'] = $installationId;
+        }
+
+        return $this->client->request('POST', '/acm/activate/verify', $payload);
+    }
+
+    /**
+     * Legacy: Verify office-issued selector+secret pair (pre-S12 activation
+     * and still-valid device_add / reset purposes).
+     * Kept for backward compatibility; activation should use verifyOtp().
+     *
      * Strict body: only selector, secret, purpose, and optional installation_id.
      *
      * @return array<string, mixed>

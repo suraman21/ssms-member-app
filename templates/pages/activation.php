@@ -2,6 +2,12 @@
 /**
  * Account activation wizard.
  *
+ * S12: activation now uses a 6-digit OTP bound to a ticket/request
+ * reference (ticket_no like ACM-20251127-0001 or request_ref). The old
+ * selector+secret pair remains for device_add/reset but is no longer
+ * accepted for activation. This template accepts both so old codes in
+ * circulation still work while new OTP codes are primary.
+ *
  * @var callable(mixed): string $e
  * @var string|null $csrfToken
  * @var string|null $error
@@ -20,23 +26,44 @@ $currentStep = $step ?? 'verify';
 
     <?php if ($currentStep === 'verify'): ?>
         <p class="fk-card-subtitle">Step 1 of 3: Enter the activation code issued by the Sunday School office.</p>
+        <div class="fk-notice" role="status" style="margin-bottom:1rem">
+            New codes are <strong>6 digits</strong> (e.g. <code>123 456</code>) together with your ticket number (e.g. <code>ACM-20251127-0001</code>). If you received an older code with a selector and secret, use the link below.
+        </div>
         <form class="fk-form" method="post" action="/activation" novalidate>
             <input type="hidden" name="csrf_token" value="<?= $e($csrfToken ?? '') ?>">
             <input type="hidden" name="step" value="verify">
 
             <div class="fk-field">
-                <label for="selector" class="fk-label">Activation Code (Selector)</label>
-                <input id="selector" name="selector" type="text" class="fk-input" autocomplete="off" required>
+                <label for="reference" class="fk-label">Ticket number or request reference</label>
+                <input id="reference" name="reference" type="text" class="fk-input" autocomplete="off" placeholder="ACM-20251127-0001" required>
+                <p class="fk-help-text" style="margin:4px 0 0">Found on the slip the office gave you. For self-service requests this is your request reference.</p>
             </div>
 
             <div class="fk-field">
-                <label for="secret" class="fk-label">Verification Secret</label>
-                <input id="secret" name="secret" type="password" class="fk-input" autocomplete="off" required>
+                <label for="otp" class="fk-label">6-digit activation code</label>
+                <input id="otp" name="otp" type="text" class="fk-input" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" placeholder="123 456" required>
+                <p class="fk-help-text" style="margin:4px 0 0">Spaces are ignored. The code expires after 10 minutes.</p>
             </div>
 
             <div class="fk-actions">
                 <button type="submit" class="fk-btn fk-btn-primary">Verify Code</button>
             </div>
+
+            <details style="margin-top:1rem">
+                <summary class="fk-help-text" style="cursor:pointer">I have an older code with a selector and secret</summary>
+                <div style="margin-top:.75rem;border:1px solid var(--fk-gold-light);border-radius:12px;padding:12px;background:var(--fk-ivory)">
+                    <p class="fk-help-text">Only for codes issued before November 2026 with a separate selector (6 chars) and secret (8 chars). New 6-digit codes use the fields above.</p>
+                    <div class="fk-field">
+                        <label for="selector" class="fk-label">Selector (6 chars)</label>
+                        <input id="selector" name="selector" type="text" class="fk-input" autocomplete="off" placeholder="e.g. A7K4P2">
+                    </div>
+                    <div class="fk-field">
+                        <label for="secret" class="fk-label">Verification Secret (8 chars)</label>
+                        <input id="secret" name="secret" type="password" class="fk-input" autocomplete="off" placeholder="e.g. 9X2Q...">
+                    </div>
+                    <p class="fk-help-text">If you fill both fields above, the 6-digit code is ignored and the older verification path is used.</p>
+                </div>
+            </details>
         </form>
     <?php elseif ($currentStep === 'credentials'): ?>
         <p class="fk-card-subtitle">Step 2 of 3: Choose a strong password for your account.</p>

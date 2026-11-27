@@ -75,21 +75,61 @@ try {
         $acmRepo = new AcmRepository(new ApiClient($config->apiBaseUrl()));
 
         if ($step === 'verify') {
+            // S12: primary path is OTP 6-digit + ticket/request reference.
+            // Legacy selector+secret pair is kept for codes issued before Nov 2026
+            // and for device_add/reset purposes. Detect which the user supplied.
+            $otpRaw = (string) ($_POST['otp'] ?? '');
+            $otp = preg_replace('/[^0-9]/', '', $otpRaw) ?? '';
+            $reference = trim((string) ($_POST['reference'] ?? $_POST['ticket_no'] ?? ''));
             $selector = trim((string) ($_POST['selector'] ?? ''));
             $secret = trim((string) ($_POST['secret'] ?? ''));
-            if ($selector === '' || $secret === '') {
+
+            $isLegacy = $selector !== '' && $secret !== '';
+            $isOtp = !$isLegacy && $otp !== '' && $reference !== '';
+
+            if (!$isLegacy && !$isOtp) {
                 $viewData['step'] = 'verify';
-                $viewData['error'] = 'Please enter both the activation code and verification secret.';
+                if ($selector !== '' || $secret !== '') {
+                    $viewData['error'] = 'For older codes please enter both selector and secret. For new codes enter your ticket number and 6-digit code.';
+                } elseif ($otp !== '' && $reference === '') {
+                    $viewData['error'] = 'Please enter your ticket number (e.g. ACM-20251127-0001) together with the 6-digit code.';
+                } elseif ($otp === '' && $reference !== '') {
+                    $viewData['error'] = 'Please enter the 6-digit activation code you received from the office.';
+                } else {
+                    $viewData['error'] = 'Please enter your ticket number and the 6-digit activation code.';
+                }
             } else {
                 try {
-                    $res = $acmRepo->verifyCode($selector, $secret);
-                    $logger->log('activation_verify', ['selector' => $selector]);
+                    if ($isLegacy) {
+                        $res = $acmRepo->verifyCode($selector, $secret);
+                        $logger->log('activation_verify_legacy', ['selector' => $selector]);
+                    } else {
+                        // OTP path: normalize reference uppercased server-side, otp digits only
+                        if (!preg_match('/^\d{6}$/', $otp)) {
+                            throw new HttpException(400, 'The 6-digit code must be exactly 6 numbers (e.g. 123 456).');
+                        }
+                        if (strlen($reference) > 24 || $reference === '') {
+                            throw new HttpException(400, 'Please enter a valid ticket number or request reference.');
+                        }
+                        $res = $acmRepo->verifyOtp($otp, $reference);
+                        $logger->log('activation_verify_otp', ['reference' => $reference]);
+                    }
                     $viewData['step'] = 'credentials';
                     $viewData['grant'] = (string) ($res['grant'] ?? '');
                     $viewData['idempotencyKey'] = bin2hex(random_bytes(16));
                 } catch (HttpException $ex) {
                     $viewData['step'] = 'verify';
-                    $viewData['error'] = $ex->getMessage();
+                    $payload = $ex->publicPayload();
+                    $code = $payload['code'] ?? '';
+                    // Map wire 503 temporarily_unavailable to a friendly retry message
+                    if ($ex->status() === 503 || $code === 'temporarily_unavailable') {
+                        $viewData['error'] = 'The Accounts Office system is briefly unavailable. Please wait a minute and try MX7CVJNR again. If this persists, contact the office with your ticket number.';
+                    } elseif ($code === 'rate_limited') {
+                        $retry = $payload['retry_after'] ?? '';
+                        $viewData['error'] = $retry !== '' ? 'Too many attempts. Please wait ' . $retry . ' seconds and try again.' : $ex->getMessage();
+                    } else {
+                        $viewData['error'] = $ex->getMessage();
+                    }
                 }
             }
         } elseif ($step === 'credentials') {
